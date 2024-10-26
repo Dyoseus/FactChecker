@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "wikipedia": "^2.1.2"
+  }
+}
