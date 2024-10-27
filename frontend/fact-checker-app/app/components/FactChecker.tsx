@@ -78,6 +78,7 @@ function getStatusColor(status: FactCheckStatus) {
 export default function FactChecker() {
   const [factChecks, setFactChecks] = useState<FactCheck[]>(initialFactChecks)
   const [wsStatus, setWsStatus] = useState<string>("disconnected")
+  const [inputText, setInputText] = useState<string>("")
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -125,13 +126,40 @@ export default function FactChecker() {
     }
   }, [])
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (inputText.trim()) {
+      fetch('http://localhost:8004/check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          statement: inputText
+        }),
+        credentials: 'include', // Include cookies if needed
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Success:', data);
+        if (data.factCheck) {
+          setFactChecks(prevChecks => [data.factCheck, ...prevChecks]);
+        }
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+      });
+  
+      setInputText('')
+    }
+  }
+
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle>Fact Checker</CardTitle>
         <CardDescription>
           A history of fact-checked statements 
-          {/* Add connection status indicator */}
           <span className={`ml-2 px-2 py-1 text-xs rounded ${
             wsStatus === "connected" ? "bg-green-100 text-green-800" :
             wsStatus === "error" ? "bg-red-100 text-red-800" :
@@ -142,6 +170,25 @@ export default function FactChecker() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <form onSubmit={handleSubmit} className="mb-6">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Enter a statement to fact check..."
+              className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="submit"
+              disabled={!inputText.trim() || wsStatus !== "connected"}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              Check Fact
+            </button>
+          </div>
+        </form>
+        
         <ScrollArea className="h-[600px] pr-4">
           {factChecks.map((check, index) => (
             <div key={index} className="mb-6 last:mb-0">
