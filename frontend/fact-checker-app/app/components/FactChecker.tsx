@@ -1,3 +1,5 @@
+"use client"
+import { useEffect, useState, useRef } from "react"
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -10,7 +12,7 @@ interface FactCheck {
   explanation: string
 }
 
-const factChecks: FactCheck[] = [
+const initialFactChecks: FactCheck[] = [
   {
     statement: "The Earth is flat.",
     result: "False",
@@ -66,6 +68,38 @@ function getStatusColor(status: FactCheckStatus) {
 }
 
 export default function FactChecker() {
+  const [factChecks, setFactChecks] = useState<FactCheck[]>(initialFactChecks)
+  const wsRef = useRef<WebSocket | null>(null)
+
+  useEffect(() => {
+    // Connect to WebSocket server
+    wsRef.current = new WebSocket('ws://localhost:8000/ws')
+
+    wsRef.current.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      if (data.type === 'NEW_FACT_CHECK') {
+        setFactChecks(prevChecks => [data.factCheck, ...prevChecks])
+      }
+    }
+
+    wsRef.current.onclose = () => {
+      // Attempt to reconnect after a delay
+      setTimeout(() => {
+        if (wsRef.current) {
+          wsRef.current.close()
+        }
+        wsRef.current = new WebSocket('ws://localhost:8000/ws')
+      }, 5000)
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close()
+      }
+    }
+  }, [])
+
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
