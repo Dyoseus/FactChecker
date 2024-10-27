@@ -1,11 +1,11 @@
 import requests
 
-# Send a new fact check
-requests.post(
+response = requests.post(
     "http://localhost:8000/send-fact-check",
     json={
-        "statement": "Python is a programming language.",
+        "statement": "ur mom fat",
         "result": "True",
-        "explanation": "Python is indeed a widely-used programming language created by Guido van Rossum."
+        "explanation": "bc she is"
     }
 )
+print(response.json())  # This will show how many active connections there are

@@ -69,30 +69,47 @@ function getStatusColor(status: FactCheckStatus) {
 
 export default function FactChecker() {
   const [factChecks, setFactChecks] = useState<FactCheck[]>(initialFactChecks)
+  const [wsStatus, setWsStatus] = useState<string>("disconnected")
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
-    // Connect to WebSocket server
-    wsRef.current = new WebSocket('ws://localhost:8000/ws')
+    console.log("Attempting to connect to WebSocket...")
+    
+    const connectWebSocket = () => {
+      wsRef.current = new WebSocket('ws://localhost:8000/ws')
 
-    wsRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      if (data.type === 'NEW_FACT_CHECK') {
-        setFactChecks(prevChecks => [data.factCheck, ...prevChecks])
+      wsRef.current.onopen = () => {
+        console.log("WebSocket connected!")
+        setWsStatus("connected")
+      }
+
+      wsRef.current.onmessage = (event) => {
+        console.log("Received message:", event.data)
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === 'NEW_FACT_CHECK') {
+            console.log("Adding new fact check:", data.factCheck)
+            setFactChecks(prevChecks => [data.factCheck, ...prevChecks])
+          }
+        } catch (error) {
+          console.error("Error processing message:", error)
+        }
+      }
+
+      wsRef.current.onerror = (error) => {
+        console.error("WebSocket error:", error)
+        setWsStatus("error")
+      }
+
+      wsRef.current.onclose = () => {
+        console.log("WebSocket closed. Attempting to reconnect...")
+        setWsStatus("disconnected")
+        setTimeout(connectWebSocket, 5000)
       }
     }
 
-    wsRef.current.onclose = () => {
-      // Attempt to reconnect after a delay
-      setTimeout(() => {
-        if (wsRef.current) {
-          wsRef.current.close()
-        }
-        wsRef.current = new WebSocket('ws://localhost:8000/ws')
-      }, 5000)
-    }
+    connectWebSocket()
 
-    // Cleanup on unmount
     return () => {
       if (wsRef.current) {
         wsRef.current.close()
@@ -104,7 +121,17 @@ export default function FactChecker() {
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle>Fact Checker</CardTitle>
-        <CardDescription>A history of fact-checked statements</CardDescription>
+        <CardDescription>
+          A history of fact-checked statements 
+          {/* Add connection status indicator */}
+          <span className={`ml-2 px-2 py-1 text-xs rounded ${
+            wsStatus === "connected" ? "bg-green-100 text-green-800" :
+            wsStatus === "error" ? "bg-red-100 text-red-800" :
+            "bg-yellow-100 text-yellow-800"
+          }`}>
+            {wsStatus}
+          </span>
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[600px] pr-4">
