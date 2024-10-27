@@ -10,7 +10,7 @@
     },
     "content_scripts": [{
         "matches": ["*://*.youtube.com/*"],
-        "js": ["contentScript.js"]
+        "js": ["sentence_tokenizer.js", "contentScript.js"]
     }],
     "host_permissions": [
         "https://factchecktools.googleapis.com/*"
