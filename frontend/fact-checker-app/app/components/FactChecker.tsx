@@ -4,7 +4,7 @@ import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-type FactCheckStatus = "True" | "False" | "Partially True"
+type FactCheckStatus = "Likely True" | "Likely False" | "Partially True" | "Partially False" | "Unable to Verify"
 
 interface FactCheck {
   statement: string
@@ -15,27 +15,27 @@ interface FactCheck {
 const initialFactChecks: FactCheck[] = [
   {
     statement: "The Earth is flat.",
-    result: "False",
+    result: "Likely False",
     explanation: "Numerous scientific observations and measurements have conclusively proven that the Earth is roughly spherical."
   },
   {
     statement: "Vaccines cause autism.",
-    result: "False",
+    result: "Likely False",
     explanation: "Extensive scientific research has found no link between vaccines and autism."
   },
   {
     statement: "Drinking water helps maintain overall health.",
-    result: "True",
+    result: "Likely True",
     explanation: "Proper hydration is essential for various bodily functions and overall well-being."
   },
   {
     statement: "Humans only use 10% of their brains.",
-    result: "False",
+    result: "Likely False",
     explanation: "Brain scans have shown that we use most of our brain, even when we're sleeping."
   },
   {
     statement: "Exercise can improve mental health.",
-    result: "True",
+    result: "Likely True",
     explanation: "Regular physical activity has been shown to reduce symptoms of depression and anxiety."
   },
   {
@@ -47,22 +47,30 @@ const initialFactChecks: FactCheck[] = [
 
 function getStatusIcon(status: FactCheckStatus) {
   switch (status) {
-    case "True":
+    case "Likely True":
       return <CheckCircle className="h-6 w-6 text-green-500" />
-    case "False":
+    case "Likely False":
       return <XCircle className="h-6 w-6 text-red-500" />
     case "Partially True":
+      return <AlertCircle className="h-6 w-6 text-yellow-500" />
+    case "Partially False":
+      return <AlertCircle className="h-6 w-6 text-yellow-500" />
+    case "Unable to Verify":
       return <AlertCircle className="h-6 w-6 text-yellow-500" />
   }
 }
 
 function getStatusColor(status: FactCheckStatus) {
   switch (status) {
-    case "True":
+    case "Likely True":
       return "bg-green-100 text-green-800"
-    case "False":
+    case "Likely False":
       return "bg-red-100 text-red-800"
     case "Partially True":
+      return "bg-yellow-100 text-yellow-800"
+    case "Partially False":
+      return "bg-yellow-100 text-yellow-800"
+    case "Unable to Verify":
       return "bg-yellow-100 text-yellow-800"
   }
 }

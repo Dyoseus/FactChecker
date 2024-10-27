@@ -94,11 +94,8 @@ class OllamaFactChecker:
 
     Respond with JSON:
     {{
-        "verdict": "Likely True/False/Partially True/Unable to Verify",
-        "confidence": 0-1,
-        "explanation": "brief explanation",
-        "evidence": ["key points"],
-        "nuances": ["important context"]
+        "verdict": "Must be one of the following: Likely True, Likely False, Partially True, Partially False, Unable to Verify",
+        "explanation": "brief explanation with evidence (key points) and nuances (important context)"
     }}"""
 
         try:
@@ -132,21 +129,17 @@ class OllamaFactChecker:
             except json.JSONDecodeError:
                 print(f"Failed to parse response as JSON. Raw response:\n{response_content}")
                 return {
-                    "verdict": "Error in analysis",
-                    "confidence": 0,
-                    "explanation": "Failed to parse model response as JSON",
-                    "evidence": [],
-                    "nuances": []
+                    "statement": statement,
+                    "result": "Partially True",
+                    "explanation": "Error in analysis - Failed to parse model response as JSON"
                 }
                 
         except Exception as e:
             print(f"Ollama analysis error: {e}")
             return {
-                "verdict": "Error in analysis",
-                "confidence": 0,
-                "explanation": f"Error during Ollama analysis: {str(e)}",
-                "evidence": [],
-                "nuances": []
+                "statement": statement,
+                "result": "Partially True",
+                "explanation": f"Error in analysis - Error during Ollama analysis {str(e)}"
             }
 
     def ensure_ollama_running(self):
@@ -220,10 +213,9 @@ class OllamaFactChecker:
             
             if not all_results:
                 return {
-                    "verdict": "Unable to verify - no sources found",
-                    "confidence": 0,
-                    "explanation": "No relevant sources found to verify the claim.",
-                    "sources": []
+                    "statement": statement,
+                    "result": "Partially True",
+                    "explanation": "Unable to verify - no valid sources. No relevant sources found to verify the claim."
                 }
 
             # Print the URLs that will be processed
@@ -238,10 +230,9 @@ class OllamaFactChecker:
         except Exception as e:
             print(f"Search error: {e}")
             return {
-                "verdict": "Unable to verify - search error",
-                "confidence": 0,
-                "explanation": str(e),
-                "sources": []
+                "statement": statement,
+                "result": "Partially True",
+                "explanation": "Unable to verify - search error"
             }
 
 
@@ -327,10 +318,9 @@ class OllamaFactChecker:
         if not sources_data:
             print("\nNo valid content could be extracted from any sources")
             return {
-                "verdict": "Unable to verify - no valid sources",
-                "confidence": 0,
-                "explanation": "Could not extract content from any sources.",
-                "sources": []
+                "statement": statement,
+                "result": "Partially True",
+                "explanation": "Unable to verify - no valid sources"
             }
 
         # Second summarization - combine and summarize all sources together
@@ -339,11 +329,29 @@ class OllamaFactChecker:
         print(f"\nSuccessfully processed {len(sources_data)} sources with content")
         print("Final summarized content length:", len(final_summary))
         
-        # Create analysis using the final summary
-        analysis = self._analyze_with_ollama(statement, final_summary)
-        analysis["sources"] = [{"url": s["url"], "domain": s["domain"]} for s in sources_data]
+        # # Create analysis using the final summary
+        # analysis = self._analyze_with_ollama(statement, final_summary)
+        # analysis["sources"] = [{"url": s["url"], "domain": s["domain"]} for s in sources_data]
         
-        return analysis
+        # return analysis
+    
+    # Create analysis using the final summary
+        analysis = self._analyze_with_ollama(statement, final_summary)
+        sources = [s["url"] + "\n" for s in sources_data]
+        sources = "\n".join(sources)
+        # Combine all analysis components into a single explanation
+        combined_explanation = f"""{analysis['explanation']}
+Sources: {sources}"""
+        print(combined_explanation)
+
+        # Create new response structure
+        response = {
+            "statement": statement,
+            "result": analysis['verdict'],
+            "explanation": combined_explanation
+        }
+        
+        return response
 
 app = FastAPI()
 checker = OllamaFactChecker()
@@ -357,11 +365,29 @@ async def check_statement(request: StatementRequest):
         if not request.statement.strip():
             raise HTTPException(status_code=400, detail="Statement cannot be empty")
             
+        # Get the fact check result
         result = checker.check_statement(request.statement)
-        return result
+        
+        # Forward the result to the service running on port 8000
+        try:
+            forward_response = requests.post(
+                "http://localhost:8000/send-fact-check",  # Changed to correct endpoint
+                json=result,
+                headers={"Content-Type": "application/json"}
+            )
+            forward_response.raise_for_status()
+            
+            # Return the result to the original caller as well
+            return result
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Warning: Failed to forward result to port 8000: {e}")
+            # Still return the result even if forwarding failed
+            return result
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/health")
 async def health_check():
@@ -369,4 +395,4 @@ async def health_check():
 
 if __name__ == "__main__":
     print("Starting Fact Checker Server...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)
