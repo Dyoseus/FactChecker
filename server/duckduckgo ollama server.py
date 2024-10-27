@@ -341,7 +341,7 @@ class OllamaFactChecker:
         sources = "\n".join(sources)
         # Combine all analysis components into a single explanation
         combined_explanation = f"""{analysis['explanation']}
-Sources: {sources}"""
+Sources:\n{sources}"""
         print(combined_explanation)
 
         # Create new response structure

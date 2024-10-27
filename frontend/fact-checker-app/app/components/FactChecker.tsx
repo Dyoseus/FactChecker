@@ -152,7 +152,7 @@ export default function FactChecker() {
                   <div className={`inline-block px-2 py-1 rounded-full text-sm font-medium mb-2 ${getStatusColor(check.result)}`}>
                     {check.result}
                   </div>
-                  <p className="text-gray-600 dark:text-gray-300">{check.explanation}</p>
+                  <p className="text-gray-600 dark:text-gray-300 whitespace-pre-line">{check.explanation}</p>
                 </div>
               </div>
               {index < factChecks.length - 1 && <hr className="my-4 border-gray-200 dark:border-gray-700" />}
