@@ -1,8 +1,10 @@
 "use client"
-import {  useState, } from "react"
+import { useEffect, useState, useRef  } from "react"
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useSearchParams } from 'next/navigation'
+
 
 type FactCheckStatus = "Likely True" | "Likely False" | "Mostly False" | "Partially False" | "Unable to Verify"
 
@@ -79,48 +81,63 @@ export default function FactChecker() {
   const [factChecks, setFactChecks] = useState<FactCheck[]>(initialFactChecks)
   const [inputText, setInputText] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+  const searchParams = useSearchParams()
+  const processedQueries = useRef(new Set<string>())
+
+  const performFactCheck = async (statement: string) => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('http://localhost:8004/check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          statement: statement
+        })
+      })
+      const data = await response.json()
+      console.log('Response data:', data)
+
+      const newFactCheck: FactCheck = {
+        statement: statement,
+        result: data.result || "Unable to Verify",
+        explanation: data.explanation || "No explanation provided"
+      }
+
+      setFactChecks(prevChecks => [newFactCheck, ...prevChecks])
+      
+    } catch (error) {
+      console.error('Error:', error)
+      const errorFactCheck: FactCheck = {
+        statement: statement,
+        result: "Unable to Verify",
+        explanation: "An error occurred while checking this fact."
+      }
+      setFactChecks(prevChecks => [errorFactCheck, ...prevChecks])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Handle URL query parameter
+  useEffect(() => {
+    const query = searchParams.get('q')
+    
+    if (!query || isLoading) return;
+    
+    // Check if we've already processed this query
+    if (!processedQueries.current.has(query)) {
+      processedQueries.current.add(query)
+      performFactCheck(query)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (inputText.trim() && !isLoading) {
-      setIsLoading(true)
-      
-      try {
-        const response = await fetch('http://localhost:8004/check', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            statement: inputText
-          })
-        })
-        const data = await response.json()
-        console.log('Response data:', data); // Debug log
-
-        // Create a new fact check object from the response
-        const newFactCheck: FactCheck = {
-          statement: inputText,
-          result: data.result || "Unable to Verify", // Fallback if result is missing
-          explanation: data.explanation || "No explanation provided" // Fallback if explanation is missing
-        }
-
-        // Add the new fact check to the beginning of the list
-        setFactChecks(prevChecks => [newFactCheck, ...prevChecks])
-        
-      } catch (error) {
-        console.error('Error:', error);
-        // Optionally add error handling UI here
-        const errorFactCheck: FactCheck = {
-          statement: inputText,
-          result: "Unable to Verify",
-          explanation: "An error occurred while checking this fact."
-        }
-        setFactChecks(prevChecks => [errorFactCheck, ...prevChecks])
-      } finally {
-        setIsLoading(false)
-        setInputText('')
-      }
+      await performFactCheck(inputText)
+      setInputText('')
     }
   }
 
