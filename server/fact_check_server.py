@@ -23,7 +23,7 @@ app.add_middleware(
 # Define the FactCheck model
 class FactCheck(BaseModel):
     statement: str
-    result: Literal["Likely True", "Likely False", "Partially True", "Partially False", "Unable to Verify"]
+    result: Literal["Likely True", "Likely False", "Mostly False", "Partially False", "Unable to Verify"]
     explanation: str
 
 # Store active WebSocket connections

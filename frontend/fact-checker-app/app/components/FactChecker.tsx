@@ -1,10 +1,10 @@
 "use client"
-import { useEffect, useState, useRef } from "react"
+import {  useState, } from "react"
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-type FactCheckStatus = "Likely True" | "Likely False" | "Partially True" | "Partially False" | "Unable to Verify"
+type FactCheckStatus = "Likely True" | "Likely False" | "Mostly False" | "Partially False" | "Unable to Verify"
 
 interface FactCheck {
   statement: string
@@ -40,7 +40,7 @@ const initialFactChecks: FactCheck[] = [
   },
   {
     statement: "Climate change is partially caused by human activities.",
-    result: "Partially True",
+    result: "Mostly False",
     explanation: "While natural factors contribute to climate change, human activities, particularly greenhouse gas emissions, are the dominant cause of observed climate change since the mid-20th century."
   }
 ]
@@ -51,7 +51,7 @@ function getStatusIcon(status: FactCheckStatus) {
       return <CheckCircle className="h-6 w-6 text-green-500" />
     case "Likely False":
       return <XCircle className="h-6 w-6 text-red-500" />
-    case "Partially True":
+    case "Mostly False":
       return <AlertCircle className="h-6 w-6 text-yellow-500" />
     case "Partially False":
       return <AlertCircle className="h-6 w-6 text-yellow-500" />
@@ -66,7 +66,7 @@ function getStatusColor(status: FactCheckStatus) {
       return "bg-green-100 text-green-800"
     case "Likely False":
       return "bg-red-100 text-red-800"
-    case "Partially True":
+    case "Mostly False":
       return "bg-yellow-100 text-yellow-800"
     case "Partially False":
       return "bg-yellow-100 text-yellow-800"
@@ -77,80 +77,50 @@ function getStatusColor(status: FactCheckStatus) {
 
 export default function FactChecker() {
   const [factChecks, setFactChecks] = useState<FactCheck[]>(initialFactChecks)
-  const [wsStatus, setWsStatus] = useState<string>("disconnected")
   const [inputText, setInputText] = useState<string>("")
-  const wsRef = useRef<WebSocket | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    console.log("Attempting to connect to WebSocket...")
-    
-    const connectWebSocket = () => {
-      wsRef.current = new WebSocket('ws://localhost:8000/ws')
-
-      wsRef.current.onopen = () => {
-        console.log("WebSocket connected!")
-        setWsStatus("connected")
-      }
-
-      wsRef.current.onmessage = (event) => {
-        console.log("Received message:", event.data)
-        try {
-          const data = JSON.parse(event.data)
-          if (data.type === 'NEW_FACT_CHECK') {
-            console.log("Adding new fact check:", data.factCheck)
-            setFactChecks(prevChecks => [data.factCheck, ...prevChecks])
-          }
-        } catch (error) {
-          console.error("Error processing message:", error)
-        }
-      }
-
-      wsRef.current.onerror = (error) => {
-        console.error("WebSocket error:", error)
-        setWsStatus("error")
-      }
-
-      wsRef.current.onclose = () => {
-        console.log("WebSocket closed. Attempting to reconnect...")
-        setWsStatus("disconnected")
-        setTimeout(connectWebSocket, 5000)
-      }
-    }
-
-    connectWebSocket()
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close()
-      }
-    }
-  }, [])
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (inputText.trim()) {
-      fetch('http://localhost:8004/check', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          statement: inputText
-        }),
-        credentials: 'include', // Include cookies if needed
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Success:', data);
-        if (data.factCheck) {
-          setFactChecks(prevChecks => [data.factCheck, ...prevChecks]);
+    if (inputText.trim() && !isLoading) {
+      setIsLoading(true)
+      
+      try {
+        const response = await fetch('http://localhost:8004/check', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            statement: inputText
+          })
+        })
+        const data = await response.json()
+        console.log('Response data:', data); // Debug log
+
+        // Create a new fact check object from the response
+        const newFactCheck: FactCheck = {
+          statement: inputText,
+          result: data.result || "Unable to Verify", // Fallback if result is missing
+          explanation: data.explanation || "No explanation provided" // Fallback if explanation is missing
         }
-      })
-      .catch((error) => {
+
+        // Add the new fact check to the beginning of the list
+        setFactChecks(prevChecks => [newFactCheck, ...prevChecks])
+        
+      } catch (error) {
         console.error('Error:', error);
-      });
-  
-      setInputText('')
+        // Optionally add error handling UI here
+        const errorFactCheck: FactCheck = {
+          statement: inputText,
+          result: "Unable to Verify",
+          explanation: "An error occurred while checking this fact."
+        }
+        setFactChecks(prevChecks => [errorFactCheck, ...prevChecks])
+      } finally {
+        setIsLoading(false)
+        setInputText('')
+      }
     }
   }
 
@@ -159,14 +129,7 @@ export default function FactChecker() {
       <CardHeader>
         <CardTitle>Fact Checker</CardTitle>
         <CardDescription>
-          A history of fact-checked statements 
-          <span className={`ml-2 px-2 py-1 text-xs rounded ${
-            wsStatus === "connected" ? "bg-green-100 text-green-800" :
-            wsStatus === "error" ? "bg-red-100 text-red-800" :
-            "bg-yellow-100 text-yellow-800"
-          }`}>
-            {wsStatus}
-          </span>
+          A history of fact-checked statements
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -178,13 +141,21 @@ export default function FactChecker() {
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Enter a statement to fact check..."
               className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isLoading}
             />
             <button
               type="submit"
-              disabled={!inputText.trim() || wsStatus !== "connected"}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              disabled={!inputText.trim() || isLoading}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Check Fact
+              {isLoading ? (
+                <>
+                  <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+                  Checking...
+                </>
+              ) : (
+                'Check Fact'
+              )}
             </button>
           </div>
         </form>

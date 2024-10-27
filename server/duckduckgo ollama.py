@@ -90,7 +90,7 @@ class OllamaFactChecker:
 
     Respond with JSON:
     {{
-        "verdict": "Likely True/False/Partially True/Unable to Verify",
+        "verdict": "Likely True/False/Mostly False/Unable to Verify",
         "confidence": 0-1,
         "explanation": "brief explanation",
         "evidence": ["key points"],
