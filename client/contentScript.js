@@ -1,38 +1,87 @@
 // contentScript.js
 
-// Function to extract live captions
+let tokenizer = new SentenceTokenizer();
+let accumulatedText = '';
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 5000;
+const MIN_SENTENCE_LENGTH = 50; // Increased minimum length
+const MIN_WORD_COUNT = 8; // Minimum number of words
+
 function getCaptions() {
     const captions = document.querySelector('.caption-window');
     return captions ? captions.innerText.trim() : '';
 }
 
-// Keep track of the last sent caption to avoid redundant processing
-let lastCaption = '';
-let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 5000; // Minimum time between requests (5 seconds)
+function countWords(text) {
+    return text.split(/\s+/).length;
+}
 
-// Set an interval to capture captions
+function extractAndProcessSentences(text) {
+    // Add new text to accumulated buffer
+    accumulatedText += ' ' + text;
+    accumulatedText = accumulatedText.trim();
+
+    // Try to extract complete sentences
+    const sentences = tokenizer.tokenize(accumulatedText);
+    
+    if (sentences.length > 0) {
+        // Filter sentences that are long enough and have enough words
+        const validSentences = sentences.slice(0, -1).filter(sentence => 
+            sentence.length >= MIN_SENTENCE_LENGTH && 
+            countWords(sentence) >= MIN_WORD_COUNT
+        );
+        
+        // Keep the potentially incomplete last sentence in the buffer
+        accumulatedText = sentences[sentences.length - 1] || '';
+
+        return validSentences;
+    }
+    
+    return [];
+}
+
 setInterval(() => {
-    const text = getCaptions();
     const currentTime = Date.now();
     
-    // Only process if we have new text and enough time has passed since last request
-    if (text && 
-        text !== lastCaption && 
-        currentTime - lastRequestTime >= MIN_REQUEST_INTERVAL) {
+    if (currentTime - lastRequestTime >= MIN_REQUEST_INTERVAL) {
+        const newText = getCaptions();
         
-        lastCaption = text;
-        lastRequestTime = currentTime;
-        console.log('Captured captions:', text);
+        if (newText) {
+            const sentences = extractAndProcessSentences(newText);
+            
+            sentences.forEach(sentence => {
+                lastRequestTime = currentTime;
+                console.log('Complete sentence found:', sentence);
 
-        // Send live captions to the background script for fact-checking
-        chrome.runtime.sendMessage({ type: 'FACT_CHECK', text: text }, (response) => {
-            if (chrome.runtime.lastError) {
-                console.error('Error sending message:', chrome.runtime.lastError);
-            }
-        });
+                // Send for fact-checking
+                chrome.runtime.sendMessage({ 
+                    type: 'FACT_CHECK', 
+                    text: sentence 
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.error('Error sending message:', chrome.runtime.lastError);
+                    }
+                });
+            });
+        }
     }
-}, 1000); // Check every second, but rate limit actual requests
+}, MIN_REQUEST_INTERVAL);
+
+// Clear accumulated text if no captions are visible for a while
+let noTextCounter = 0;
+setInterval(() => {
+    const currentCaptions = getCaptions();
+    if (!currentCaptions) {
+        noTextCounter++;
+        if (noTextCounter > 3) {
+            accumulatedText = '';
+            noTextCounter = 0;
+        }
+    } else {
+        noTextCounter = 0;
+    }
+}, 5000);
+
 
 // Listen for fact-check results from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
