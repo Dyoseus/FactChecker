@@ -1,11 +1,7 @@
 // background.js
 
 // Store API key securely
-
-
-require('dotenv').config();
-const FACT_CHECK_API_KEY = process.env.FACT_CHECK_API_KEY;
-
+const FACT_CHECK_API_KEY = 'AIzaSyDuB2u-QTHdGiUTKlaL8nlzZgY5JWpJ7kk'; // Replace with your actual API key
 
 // Use chrome.identity API for OAuth
 async function getAccessToken() {

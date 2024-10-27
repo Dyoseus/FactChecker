@@ -29,6 +29,40 @@ function trimToMaxWords(text) {
     return words.slice(-(MAX_WORD_COUNT)).join(' ');
 }
 
+// Function to send result.text to the backend server via POST
+function sendToBackend(claimText) {
+    const backendURL = 'http://localhost:8004/check';
+    fetch(backendURL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: claimText  // Changed from 'claimText' to 'statement' to match your backend
+    
+    }).then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('✅ Sent claim to backend successfully:', data);
+    })
+    .catch(error => {
+        console.error('❌ Error sending claim to backend:', error);
+        console.error('Request details:', {
+            url: backendURL,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                statement: claimText
+            })
+        });
+    });
+}
+
 // Function to perform fact check
 function performFactCheck(text) {
     isFactCheckPending = true;
@@ -128,7 +162,7 @@ function injectStyles() {
 }
 
 // Inject styles when script loads
-injectStyles();
+injectStyles();         
 
 // Set an interval to capture and accumulate captions
 setInterval(() => {
@@ -156,23 +190,12 @@ setInterval(() => {
             } else {
                 accumulatedCaptions = pendingCaptions;
             }
-            console.log('📚 Accumulated captions updated:', {
-                previous: accumulatedCaptions,
-                new: pendingCaptions,
-                combined: accumulatedCaptions + ' ' + pendingCaptions
-            });
             pendingCaptions = ''; // Reset pending captions
         }
 
         // Ensure we don't exceed MAX_WORD_COUNT words
         if (countWords(accumulatedCaptions) > MAX_WORD_COUNT) {
-            const beforeTrim = accumulatedCaptions;
             accumulatedCaptions = trimToMaxWords(accumulatedCaptions);
-            console.log('✂️ Trimmed accumulated captions:', {
-                before: beforeTrim,
-                after: accumulatedCaptions,
-                wordCount: countWords(accumulatedCaptions)
-            });
         }
 
         // Perform fact check if we have content and no pending check
@@ -185,30 +208,20 @@ setInterval(() => {
 // Listen for fact-check results from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'FACT_CHECK_RESULT') {
-        console.log('✅ Fact check result received:', {
-            timestamp: new Date().toISOString(),
-            data: message.data,
-            wasSuccessful: message.data.status === 'success',
-            hadClaims: message.data.claimReview && message.data.claimReview.length > 0
-        });
-        
         isFactCheckPending = false;
 
-        // Only reset accumulated captions if a fact was found
         if (message.data.status === 'success' && message.data.claimReview && message.data.claimReview.length > 0) {
-            console.log('🎯 Match found - showing popup and resetting captions');
             showFactCheckPopup(message.data);
+            sendToBackend(message.data.text); // Send to backend
+
             accumulatedCaptions = ''; // Reset only when a fact is found
             pendingCaptions = ''; // Clear any pending captions
-        } else {
-            console.log('🔄 No match found - continuing to accumulate captions');
         }
     }
 });
 
 // Function to show fact-check results in a popup on the page
 function showFactCheckPopup(result) {
-    // Remove any existing popups
     const existingPopup = document.querySelector('.fact-check-popup');
     if (existingPopup) {
         existingPopup.remove();
@@ -217,9 +230,10 @@ function showFactCheckPopup(result) {
     const popup = document.createElement('div');
     popup.className = 'fact-check-popup';
 
-    // Display fact-check information
     if (result.status === 'success' && result.claimReview && result.claimReview.length > 0) {
         const claimReview = result.claimReview[0];
+        const webAppSearchLink = `http://localhost:3000/search?q=${encodeURIComponent(result.text)}`; // Local web app search link
+
         popup.innerHTML = `
             <div class="fact-check-title">Fact Check Result</div>
             <div class="fact-check-claim">"${result.text}"</div>
@@ -227,26 +241,14 @@ function showFactCheckPopup(result) {
             <div><strong>Verified by:</strong> ${claimReview.publisher.name}</div>
             <div class="fact-check-rating"><strong>Rating:</strong> ${claimReview.textualRating}</div>
             <a href="${claimReview.url}" target="_blank" class="fact-check-link">Read Full Review</a>
-        `;
-    } else if (result.status === 'not_found') {
-        popup.innerHTML = `
-            <div class="fact-check-title">No Results Found</div>
-            <div class="fact-check-claim">
-                No fact-check found for this statement.
-            </div>
+            <a href="${webAppSearchLink}" target="_blank" class="fact-check-link">Search in Web App</a>
         `;
     } else {
-        popup.innerHTML = `
-            <div class="fact-check-title">Error</div>
-            <div class="fact-check-claim">
-                ${result.message || 'An unknown error occurred'}
-            </div>
-        `;
+        popup.innerHTML = `<div class="fact-check-title">No Results Found</div>`;
     }
 
     document.body.appendChild(popup);
 
-    // Remove the popup after POPUP_DURATION milliseconds
     setTimeout(() => {
         if (popup && popup.parentElement) {
             popup.remove();

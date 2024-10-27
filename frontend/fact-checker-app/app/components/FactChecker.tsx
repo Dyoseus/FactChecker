@@ -3,6 +3,8 @@ import {  useState, } from "react"
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useLocation } from 'react-router-dom';
+
 
 type FactCheckStatus = "Likely True" | "Likely False" | "Mostly False" | "Partially False" | "Unable to Verify"
 
@@ -79,6 +81,29 @@ export default function FactChecker() {
   const [factChecks, setFactChecks] = useState<FactCheck[]>(initialFactChecks)
   const [inputText, setInputText] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const query = params.get('query');
+    if (query) {
+      setInputText(query);
+      handleSubmit({ preventDefault: () => {} });
+    }
+  }, [location]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!inputText.trim()) return;
+
+    setIsLoading(true);
+    try {
+      // Your existing search logic here
+    } finally {
+      setIsLoading(false);
+      setInputText('');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
