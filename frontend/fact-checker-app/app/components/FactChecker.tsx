@@ -1,10 +1,9 @@
 "use client"
-import {  useState, } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from 'next/navigation';
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useLocation } from 'react-router-dom';
-
 
 type FactCheckStatus = "Likely True" | "Likely False" | "Mostly False" | "Partially False" | "Unable to Verify"
 
@@ -81,33 +80,12 @@ export default function FactChecker() {
   const [factChecks, setFactChecks] = useState<FactCheck[]>(initialFactChecks)
   const [inputText, setInputText] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
-  const location = useLocation();
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const query = params.get('query');
-    if (query) {
-      setInputText(query);
-      handleSubmit({ preventDefault: () => {} });
-    }
-  }, [location]);
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    if (!inputText.trim()) return;
-
-    setIsLoading(true);
-    try {
-      // Your existing search logic here
-    } finally {
-      setIsLoading(false);
-      setInputText('');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (inputText.trim() && !isLoading) {
+  
+  const searchParams = useSearchParams();  // Hook to access URL search params
+  
+  // Function to handle fact check submission
+  const handleSubmit = async (statement: string) => {
+    if (statement.trim() && !isLoading) {
       setIsLoading(true)
       
       try {
@@ -117,7 +95,7 @@ export default function FactChecker() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            statement: inputText
+            statement
           })
         })
         const data = await response.json()
@@ -125,7 +103,7 @@ export default function FactChecker() {
 
         // Create a new fact check object from the response
         const newFactCheck: FactCheck = {
-          statement: inputText,
+          statement,
           result: data.result || "Unable to Verify", // Fallback if result is missing
           explanation: data.explanation || "No explanation provided" // Fallback if explanation is missing
         }
@@ -135,9 +113,8 @@ export default function FactChecker() {
         
       } catch (error) {
         console.error('Error:', error);
-        // Optionally add error handling UI here
         const errorFactCheck: FactCheck = {
-          statement: inputText,
+          statement,
           result: "Unable to Verify",
           explanation: "An error occurred while checking this fact."
         }
@@ -149,6 +126,16 @@ export default function FactChecker() {
     }
   }
 
+  // Effect to handle search query from the URL
+  useEffect(() => {
+    const query = searchParams.get('q');  // Get 'q' query parameter from the URL
+    if (query) {
+      console.log(`Found query from URL: ${query}`);
+      setInputText(query);  // Set the input text from URL
+      handleSubmit(query);  // Automatically submit the fact check for the query
+    }
+  }, [searchParams]);
+
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
@@ -158,7 +145,7 @@ export default function FactChecker() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="mb-6">
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(inputText); }} className="mb-6">
           <div className="flex gap-2">
             <input
               type="text"
