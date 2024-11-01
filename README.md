@@ -138,3 +138,4 @@ IMPORTANT: RUN THESE IN ORDER
 python duckduckgo ollama server.py
 python fact_check_server.py
 npm run dev in fact-checker-app
+😛
